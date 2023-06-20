@@ -1,0 +1,989 @@
+library(DescTools)
+library(ggplot2)
+library(QuantileNPCI)
+library(tidyverse)
+
+#dataset
+b_til <- read.table("Breast_TIL_raw_data.csv", sep=",", header=T)
+
+
+b_til$changed_people<-ifelse(b_til$Pathologist_A_TIL == b_til$Pathologist_A_TIL_revised, 0, 1) + ifelse(b_til$Pathologist_B_or_D_TIL == b_til$Pathologist_B_or_D_TIL_revised, 0, 1) + ifelse(b_til$Pathologist_C_TIL == b_til$Pathologist_C_TIL_revised, 0, 1)
+b_til$changed<-ifelse(b_til$changed_people>=1,"Yes","No")
+
+
+b_til$A_revisited<-ifelse(b_til$A_revisited==1,"Yes","No")
+b_til$B_revisited<-ifelse(b_til$B_revisited==1,"Yes","No")
+b_til$C_revisited<-ifelse(b_til$C_revisited==1,"Yes","No")
+b_til$D_revisited<-ifelse(b_til$D_revisited==1,"Yes","No")
+
+
+
+b_til$A_change<-ifelse (b_til$Pathologist_A_TIL == b_til$Pathologist_A_TIL_revised, "No", "Yes")
+b_til$B_change<-ifelse (b_til$Pathologist_B_TIL == b_til$Pathologist_B_TIL_revised, "No", "Yes")
+b_til$C_change<-ifelse (b_til$Pathologist_C_TIL == b_til$Pathologist_C_TIL_revised, "No", "Yes")
+b_til$D_change<-ifelse (b_til$Pathologist_D_TIL == b_til$Pathologist_D_TIL_revised, "No", "Yes")
+
+b_til$pCR<-ifelse(b_til$Miller.Payne_grade>=4,"Responder","Non-responder")
+
+
+
+
+
+#Figure2a
+
+b_til_perfect<-subset(b_til, abs(b_til$Pathologist_A_TIL - b_til$Pathologist_B_or_D_TIL)<=10 & abs(b_til$Pathologist_B_or_D_TIL - b_til$Pathologist_C_TIL)<=10 & abs(b_til$Pathologist_C_TIL - b_til$Pathologist_A_TIL)<=10)
+
+CCC(b_til_perfect$Pathologist_average, b_til_perfect$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = b_til_perfect, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Concordant set (N = 210), \nCCC = 0.755 (95% CI: 0.693-0.805)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure2b
+
+b_til_perfect_IDC<-subset(b_til_perfect, Histological_description=="IDC")
+
+CCC(b_til_perfect_IDC$Pathologist_average, b_til_perfect_IDC$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = b_til_perfect_IDC, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Concordant set (IDC, N = 176), \nCCC = 0.728 (95% CI: 0.654-0.788)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure2c
+
+b_til_perfect_not_IDC<-subset(b_til_perfect, Histological_description!="IDC")
+
+CCC(b_til_perfect_not_IDC$Pathologist_average, b_til_perfect_not_IDC$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = b_til_perfect_not_IDC, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Concordant set (non-IDC, N = 34), \nCCC = 0.933 (95% CI: 0.877-0.965)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+
+#Figure3
+
+b_til$AB_change<-ifelse(b_til$A_change =='Yes' & b_til$B_change =='Yes', "Two Pathologists",
+                            ifelse(b_til$A_change =='Yes', "Pathologist A",
+                                   ifelse(b_til$B_change =='Yes', "Pathologist B", "None")))
+
+b_til$AB_before <- factor(b_til$AB_before, levels = c("Two Pathologists", "Pathologist A", "Pathologist B", "None"))
+b_til$AB_change <- factor(b_til$AB_change, levels = c("Two Pathologists", "Pathologist A", "Pathologist B", "None"))
+
+b_til$AC_change<-ifelse(b_til$A_change =='Yes' & b_til$C_change =='Yes', "Two Pathologists",
+                        ifelse(b_til$A_change =='Yes', "Pathologist A",
+                               ifelse(b_til$C_change =='Yes', "Pathologist C", "None")))
+
+b_til$AC_before <- factor(b_til$AC_before, levels = c("Two Pathologists", "Pathologist A", "Pathologist C", "None"))
+b_til$AC_change <- factor(b_til$AC_change, levels = c("Two Pathologists", "Pathologist A", "Pathologist C", "None"))
+
+
+b_til$AD_change<-ifelse(b_til$A_change =='Yes' & b_til$D_change =='Yes', "Two Pathologists",
+                        ifelse(b_til$A_change =='Yes', "Pathologist A",
+                               ifelse(b_til$D_change =='Yes', "Pathologist D", "None")))
+
+b_til$AD_before <- factor(b_til$AD_before, levels = c("Two Pathologists", "Pathologist A", "Pathologist D", "None"))
+b_til$AD_change <- factor(b_til$AD_change, levels = c("Two Pathologists", "Pathologist A", "Pathologist D", "None"))
+
+
+b_til$BC_change<-ifelse(b_til$B_change =='Yes' & b_til$C_change =='Yes', "Two Pathologists",
+                        ifelse(b_til$B_change =='Yes', "Pathologist B",
+                               ifelse(b_til$C_change =='Yes', "Pathologist C", "None")))
+
+b_til$BC_before <- factor(b_til$BC_before, levels = c("Two Pathologists", "Pathologist B", "Pathologist C", "None"))
+b_til$BC_change <- factor(b_til$BC_change, levels = c("Two Pathologists", "Pathologist B", "Pathologist C", "None"))
+
+b_til$CD_change<-ifelse(b_til$C_change =='Yes' & b_til$D_change =='Yes', "Two Pathologists",
+                        ifelse(b_til$C_change =='Yes', "Pathologist C",
+                               ifelse(b_til$D_change =='Yes', "Pathologist D", "None")))
+
+b_til$CD_before <- factor(b_til$CD_before, levels = c("Two Pathologists", "Pathologist C", "Pathologist D", "None"))
+b_til$CD_change <- factor(b_til$CD_change, levels = c("Two Pathologists", "Pathologist C", "Pathologist D", "None"))
+
+
+b_til_ABC<-b_til[!is.na(b_til$Pathologist_B_TIL),]
+b_til_ACD<-b_til[!is.na(b_til$Pathologist_D_TIL),]
+
+
+
+
+
+#Figure3a
+
+CCC(b_til_ABC$Pathologist_A_TIL, b_til_ABC$Pathologist_B_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ABC, aes(x=Pathologist_A_TIL, y=Pathologist_B_TIL)) +
+  geom_jitter(mapping = aes(color = AB_before), width = 1, height = 1) + 
+  scale_color_manual(values=c('Blue','Magenta', 'Cyan', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Initial, CCC = 0.662 (95% CI: 0.604-0.714)", x = "TIL score (%) of Pathologist A", y = "TIL score (%) of Pathologist B", colour = "Pathologist Revisited") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure3f
+
+CCC(b_til_ABC$Pathologist_A_TIL_revised, b_til_ABC$Pathologist_B_TIL_revised, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ABC, aes(x=Pathologist_A_TIL_revised, y=Pathologist_B_TIL_revised)) +
+  geom_jitter(mapping = aes(colour = AB_change), width = 1, height = 1) + 
+  scale_color_manual(values=c('Blue','Magenta', 'Cyan', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Revised, CCC = 0.800 (95% CI: 0.758-0.836)", x = "TIL score (%) of Pathologist A", y = "TIL score (%) of Pathologist B", colour = "Pathologist Rescored") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure3b
+
+CCC(b_til$Pathologist_A_TIL, b_til$Pathologist_C_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_A_TIL, y=b_til$Pathologist_C_TIL)) +
+  geom_jitter(mapping = aes(colour = AC_before), width = 1, height = 1) + 
+  scale_color_manual(values=c('Red','Magenta', 'Yellow', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Initial, CCC = 0.653 (95% CI: 0.605-0.696)", x = "TIL score (%) of Pathologist A", y = "TIL score (%) of Pathologist C", colour = "Pathologist Revisited") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure3g
+
+CCC(b_til$Pathologist_A_TIL_revised, b_til$Pathologist_C_TIL_revised, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_A_TIL_revised, y=Pathologist_C_TIL_revised)) +
+  geom_jitter(mapping = aes(colour = AC_change), width = 1, height = 1) + 
+  scale_color_manual(values=c('Red','Magenta', 'Yellow', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Revised, CCC = 0.854 (95% CI: 0.828-0.877)", x = "TIL score (%) of Pathologist A", y = "TIL score (%) of Pathologist C", colour = "Pathologist Rescored") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure3c
+
+CCC(b_til_ACD$Pathologist_A_TIL, b_til_ACD$Pathologist_D_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ACD, aes(x=Pathologist_A_TIL, y=Pathologist_D_TIL)) +
+  geom_jitter(mapping = aes(color = AD_before), width = 1, height = 1) + 
+  scale_color_manual(values=c('#007f00','Magenta', '#c0c0c0', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Initial, CCC = 0.769 (95% CI: 0.698-0.825)", x = "TIL score (%) of Pathologist A", y = "TIL score (%) of Pathologist D", colour = "Pathologist Revisited") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure3h
+
+CCC(b_til_ACD$Pathologist_A_TIL_revised, b_til_ACD$Pathologist_D_TIL_revised, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ACD, aes(x=Pathologist_A_TIL_revised, y=Pathologist_D_TIL_revised)) +
+  geom_jitter(mapping = aes(colour = AD_change), width = 1, height = 1) + 
+  scale_color_manual(values=c('#007f00','Magenta', '#c0c0c0', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Revised, CCC = 0.881 (95% CI: 0.839-0.913)", x = "TIL score (%) of Pathologist A", y = "TIL score (%) of Pathologist D", colour = "Pathologist Rescored") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure3d
+
+CCC(b_til_ABC$Pathologist_B_TIL, b_til_ABC$Pathologist_C_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ABC, aes(x=Pathologist_B_TIL, y=Pathologist_C_TIL)) +
+  geom_jitter(mapping = aes(colour = BC_before), width = 1, height = 1) + 
+  scale_color_manual(values=c('Green','Cyan', 'Yellow', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Initial, CCC = 0.824 (95% CI: 0.782-0.858)", x = "TIL score (%) of Pathologist B", y = "TIL score (%) of Pathologist C", colour = "Pathologist Revisited") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure3i
+
+CCC(b_til_ABC$Pathologist_B_TIL_revised, b_til_ABC$Pathologist_C_TIL_revised, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ABC, aes(x=Pathologist_B_TIL_revised, y=Pathologist_C_TIL_revised)) +
+  geom_jitter(mapping = aes(colour = BC_change), width = 1, height = 1) + 
+  scale_color_manual(values=c('Green','Cyan', 'Yellow', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Revised, CCC = 0.914 (95% CI: 0.892-0.931)", x = "TIL score (%) of Pathologist B", y = "TIL score (%) of Pathologist C", colour = "Pathologist Rescored") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure3e
+
+CCC(b_til_ACD$Pathologist_C_TIL, b_til_ACD$Pathologist_D_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ACD, aes(x=Pathologist_C_TIL, y=Pathologist_D_TIL)) +
+  geom_jitter(mapping = aes(colour = CD_before), width = 1, height = 1) + 
+  scale_color_manual(values=c('#0000ff','Yellow', '#c0c0c0', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Initial, CCC = 0.859 (95% CI: 0.810-0.896)", x = "TIL score (%) of Pathologist C", y = "TIL score (%) of Pathologist D", colour = "Pathologist Revisited") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure3j
+
+CCC(b_til_ACD$Pathologist_C_TIL_revised, b_til_ACD$Pathologist_D_TIL_revised, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ACD, aes(x=Pathologist_C_TIL_revised, y=Pathologist_D_TIL_revised)) +
+  geom_jitter(mapping = aes(colour = CD_change), width = 1, height = 1) + 
+  scale_color_manual(values=c('#0000ff','Yellow', '#c0c0c0', 'black')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed', color='Orange') + 
+  labs(title="Revised, CCC = 0.893 (95% CI: 0.855-0.921)", x = "TIL score (%) of Pathologist C", y = "TIL score (%) of Pathologist D", colour = "Pathologist Rescored") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4
+
+
+
+#Figure4a
+
+
+CCC(b_til$Pathologist_average, b_til$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = b_til, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = Any_revisited)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial, CCC = 0.729 (95% CI: 0.682-0.771)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)", colour = "Revisited \ncases") +
+  geom_abline(intercept = 0, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure4f
+
+CCC(b_til$Pathologist_average_revised, b_til$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_average_revised, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = changed)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised, CCC = 0.874 (95% CI: 0.849-0.895)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)", colour = "Rescored \ncases") +
+  geom_abline(intercept = 0, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4b
+
+
+CCC(b_til$Pathologist_A_TIL, b_til$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_A_TIL, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = A_revisited)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial, CCC = 0.750 (95% CI: 0.705-0.790)", x = "TIL score (%) of Pathologist A", y = "DL-powered TIL score (%)", colour = "Revisited \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4g
+
+CCC(b_til$Pathologist_A_TIL_revised, b_til$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_A_TIL_revised, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = A_change)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised, CCC = 0.916 (95% CI: 0.899-0.931)", x = "TIL score (%) of Pathologist A", y = "DL-powered TIL score (%)", colour = "Rescored \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4c
+
+CCC(b_til_ABC$Pathologist_B_TIL, b_til_ABC$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ABC, aes(x=Pathologist_B_TIL, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = B_revisited)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial, CCC = 0.621 (95% CI: 0.564-0.673)", x = "TIL score (%) of Pathologist B", y = "DL-powered TIL score (%)", colour = "Revisited \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4h
+
+CCC(b_til_ABC$Pathologist_B_TIL_revised, b_til_ABC$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ABC, aes(x=Pathologist_B_TIL_revised, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = B_change)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised, CCC = 0.756 (95% CI: 0.711-0.795)", x = "TIL score (%) of Pathologist B", y = "DL-powered TIL score (%)", colour = "Rescored \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4d
+
+CCC(b_til$Pathologist_C_TIL, b_til$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_C_TIL, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = C_revisited)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial, CCC = 0.604 (95% CI: 0.546-0.657)", x = "TIL score (%) of Pathologist C", y = "DL-powered TIL score (%)", colour = "Revisited \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure4i
+
+CCC(b_til$Pathologist_C_TIL_revised, b_til$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til, aes(x=Pathologist_C_TIL_revised, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = C_change)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised, CCC = 0.809 (95% CI: 0.775-0.839)", x = "TIL score (%) of Pathologist C", y = "DL-powered TIL score (%)", colour = "Rescored \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure4e
+
+CCC(b_til_ACD$Pathologist_D_TIL, b_til_ACD$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ACD, aes(x=Pathologist_D_TIL, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = D_revisited)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial, CCC = 0.726 (95% CI: 0.645-0.791)", x = "TIL score (%) of Pathologist D", y = "DL-powered TIL score (%)", colour = "Revisited \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure4j
+
+
+CCC(b_til_ACD$Pathologist_D_TIL_revised, b_til_ACD$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_ACD, aes(x=Pathologist_D_TIL_revised, y=AI_TIL)) +
+  geom_point(mapping = aes(colour = D_change)) + 
+  scale_color_manual(values=c('Black','Red')) +
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised, CCC = 0.823 (95% CI: 0.766-0.867)", x = "TIL score (%) of Pathologist D", y = "DL-powered TIL score (%)", colour = "Rescored \ncases") +
+  geom_abline(intercept = 10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  geom_abline(intercept = -10, slope = 1, col = 'black',
+              size = 1, linetype = 'dashed') +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+
+#Figure6a
+
+AB_before<-b_til_ABC[,c("Pathologist_A_TIL","Pathologist_B_TIL")] 
+
+AB_before$avg<-(b_til_ABC$Pathologist_A_TIL+b_til_ABC$Pathologist_B_TIL)/2 
+
+AB_before$diff<-b_til_ABC$Pathologist_A_TIL-b_til_ABC$Pathologist_B_TIL
+
+shapiro.test(AB_before$diff)
+
+AB_before_diff.mean<-mean(AB_before$diff) 
+AB_before_diff.sd<-sd(AB_before$diff)
+
+mean(abs(AB_before$diff))
+sd(abs(AB_before$diff))
+
+
+AB_before_lower_quar<-quantCI(AB_before$diff, 0.025, alpha=0.05, method = "exact")
+AB_before_lower_quar_value<-AB_before_lower_quar[["qx"]]
+AB_before_upper_quar<-quantCI(AB_before$diff, 0.975, alpha=0.05, method = "exact")
+AB_before_upper_quar_value<-AB_before_upper_quar[["qx"]]
+
+AB_before_upper_cha<-AB_before_upper_quar_value + 5
+AB_before_lower_cha<-AB_before_lower_quar_value - 5
+AB_before_mean_cha<-AB_before_diff.mean + 5
+
+
+ggplot(data=AB_before, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=AB_before_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=AB_before_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=AB_before_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (A, B)",y="TIL score (%) difference (A - B)",title="Initial") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=AB_before_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=AB_before_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=AB_before_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+#Figure6f
+
+AB_after<-b_til_ABC[,c("Pathologist_A_TIL_revised","Pathologist_B_TIL_revised")] 
+
+AB_after$avg<-(b_til_ABC$Pathologist_A_TIL_revised+b_til_ABC$Pathologist_B_TIL_revised)/2  
+
+AB_after$diff<-b_til_ABC$Pathologist_A_TIL_revised-b_til_ABC$Pathologist_B_TIL_revised
+
+shapiro.test(AB_after$diff)
+
+AB_after_diff.mean<-mean(AB_after$diff) 
+AB_after_diff.sd<-sd(AB_after$diff)
+
+mean(abs(AB_after$diff))
+sd(abs(AB_after$diff))
+
+t.test(AB_before$diff, AB_after$diff, paired=TRUE)
+
+AB_after_lower_quar<-quantCI(AB_after$diff, 0.025, alpha=0.05, method = "exact")
+AB_after_lower_quar_value<-AB_after_lower_quar[["qx"]]
+AB_after_upper_quar<-quantCI(AB_after$diff, 0.975, alpha=0.05, method = "exact")
+AB_after_upper_quar_value<-AB_after_upper_quar[["qx"]]
+
+AB_after_upper_cha<-AB_after_upper_quar_value + 5
+AB_after_lower_cha<-AB_after_lower_quar_value - 5
+AB_after_mean_cha<-AB_after_diff.mean + 5
+
+
+ggplot(data=AB_after, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=AB_after_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=AB_after_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=AB_after_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (A, B)",y="TIL score (%) difference (A - B)",title="Revised") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=AB_after_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=AB_after_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=AB_after_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+
+#Figure6b
+
+AC_before<-b_til[,c("Pathologist_A_TIL","Pathologist_C_TIL")] 
+
+AC_before$avg<-(b_til$Pathologist_A_TIL+b_til$Pathologist_C_TIL)/2  
+
+AC_before$diff<-b_til$Pathologist_A_TIL-b_til$Pathologist_C_TIL
+
+shapiro.test(AC_before$diff)
+
+AC_before_diff.mean<-mean(AC_before$diff) 
+AC_before_diff.sd<-sd(AC_before$diff)
+
+mean(abs(AC_before$diff))
+sd(abs(AC_before$diff))
+
+AC_before_lower_quar<-quantCI(AC_before$diff, 0.025, alpha=0.05, method = "exact")
+AC_before_lower_quar_value<-AC_before_lower_quar[["qx"]]
+AC_before_upper_quar<-quantCI(AC_before$diff, 0.975, alpha=0.05, method = "exact")
+AC_before_upper_quar_value<-AC_before_upper_quar[["qx"]]
+
+AC_before_upper_cha<-AC_before_upper_quar_value + 5
+AC_before_lower_cha<-AC_before_lower_quar_value - 5
+AC_before_mean_cha<-AC_before_diff.mean + 5
+
+
+ggplot(data=AC_before, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=AC_before_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=AC_before_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=AC_before_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (A, C)",y="TIL score (%) difference (A - C)",title="Initial") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=AC_before_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=AC_before_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=AC_before_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+#Figure6g
+
+AC_after<-b_til[,c("Pathologist_A_TIL_revised","Pathologist_C_TIL_revised")] 
+
+AC_after$avg<-(b_til$Pathologist_A_TIL_revised+b_til$Pathologist_C_TIL_revised)/2  
+
+AC_after$diff<-b_til$Pathologist_A_TIL_revised-b_til$Pathologist_C_TIL_revised
+
+shapiro.test(AC_after$diff)
+
+AC_after_diff.mean<-mean(AC_after$diff) 
+AC_after_diff.sd<-sd(AC_after$diff)
+
+
+mean(abs(AC_after$diff))
+sd(abs(AC_after$diff))
+
+t.test(AC_before$diff, AC_after$diff, paired=TRUE)
+
+AC_after_lower_quar<-quantCI(AC_after$diff, 0.025, alpha=0.05, method = "exact")
+AC_after_lower_quar_value<-AC_after_lower_quar[["qx"]]
+AC_after_upper_quar<-quantCI(AC_after$diff, 0.975, alpha=0.05, method = "exact")
+AC_after_upper_quar_value<-AC_after_upper_quar[["qx"]]
+
+AC_after_upper_cha<-AC_after_upper_quar_value + 5
+AC_after_lower_cha<-AC_after_lower_quar_value - 5
+AC_after_mean_cha<-AC_after_diff.mean + 5
+
+
+ggplot(data=AC_after, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=AC_after_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=AC_after_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=AC_after_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (A, C)",y="TIL score (%) difference (A - C)",title="Revised") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=AC_after_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=AC_after_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=AC_after_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+
+#Figure6c
+
+
+AD_before<-b_til_ACD[,c("Pathologist_A_TIL","Pathologist_D_TIL")] 
+
+AD_before$avg<-(b_til_ACD$Pathologist_A_TIL+b_til_ACD$Pathologist_D_TIL)/2  
+
+AD_before$diff<-b_til_ACD$Pathologist_A_TIL-b_til_ACD$Pathologist_D_TIL
+
+shapiro.test(AD_before$diff)
+
+AD_before_diff.mean<-mean(AD_before$diff) 
+AD_before_diff.sd<-sd(AD_before$diff)
+
+mean(abs(AD_before$diff))
+sd(abs(AD_before$diff))
+
+AD_before_lower_quar<-quantCI(AD_before$diff, 0.025, alpha=0.05, method = "exact")
+AD_before_lower_quar_value<-AD_before_lower_quar[["qx"]]
+AD_before_upper_quar<-quantCI(AD_before$diff, 0.975, alpha=0.05, method = "exact")
+AD_before_upper_quar_value<-AD_before_upper_quar[["qx"]]
+
+AD_before_upper_cha<-AD_before_upper_quar_value + 5
+AD_before_lower_cha<-AD_before_lower_quar_value - 5
+AD_before_mean_cha<-AD_before_diff.mean + 5
+
+
+ggplot(data=AD_before, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=AD_before_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=AD_before_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=AD_before_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (A, D)",y="TIL score (%) difference (A - D)",title="Initial") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=AD_before_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=AD_before_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=AD_before_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+#Figure6h
+
+AD_after<-b_til_ACD[,c("Pathologist_A_TIL_revised","Pathologist_D_TIL_revised")]
+
+AD_after$avg<-(b_til_ACD$Pathologist_A_TIL_revised+b_til_ACD$Pathologist_D_TIL_revised)/2 
+
+AD_after$diff<-b_til_ACD$Pathologist_A_TIL_revised-b_til_ACD$Pathologist_D_TIL_revised
+
+shapiro.test(AD_after$diff)
+
+AD_after_diff.mean<-mean(AD_after$diff) 
+AD_after_diff.sd<-sd(AD_after$diff)
+
+mean(abs(AD_after$diff))
+sd(abs(AD_after$diff))
+
+t.test(AD_before$diff, AD_after$diff, paired=TRUE)
+
+AD_after_lower_quar<-quantCI(AD_after$diff, 0.025, alpha=0.05, method = "exact")
+AD_after_lower_quar_value<-AD_after_lower_quar[["qx"]]
+AD_after_upper_quar<-quantCI(AD_after$diff, 0.975, alpha=0.05, method = "exact")
+AD_after_upper_quar_value<-AD_after_upper_quar[["qx"]]
+
+AD_after_upper_cha<-AD_after_upper_quar_value + 5
+AD_after_lower_cha<-AD_after_lower_quar_value - 5
+AD_after_mean_cha<-AD_after_diff.mean + 5
+
+
+ggplot(data=AD_after, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=AD_after_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=AD_after_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=AD_after_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (A, D)",y="TIL score (%) difference (A - D)",title="Revised") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=AD_after_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=AD_after_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=AD_after_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+
+#Figure6d
+
+BC_before<-b_til_ABC[,c("Pathologist_B_TIL","Pathologist_C_TIL")] 
+
+BC_before$avg<-(b_til_ABC$Pathologist_B_TIL+b_til_ABC$Pathologist_C_TIL)/2 
+
+BC_before$diff<-b_til_ABC$Pathologist_B_TIL-b_til_ABC$Pathologist_C_TIL
+
+shapiro.test(BC_before$diff)
+
+BC_before_diff.mean<-mean(BC_before$diff) 
+BC_before_diff.sd<-sd(BC_before$diff)
+
+mean(abs(BC_before$diff))
+sd(abs(BC_before$diff))
+
+BC_before_lower_quar<-quantCI(BC_before$diff, 0.025, alpha=0.05, method = "exact")
+BC_before_lower_quar_value<-BC_before_lower_quar[["qx"]]
+BC_before_upper_quar<-quantCI(BC_before$diff, 0.975, alpha=0.05, method = "exact")
+BC_before_upper_quar_value<-BC_before_upper_quar[["qx"]]
+
+BC_before_upper_cha<-BC_before_upper_quar_value + 5
+BC_before_lower_cha<-BC_before_lower_quar_value - 5
+BC_before_mean_cha<-BC_before_diff.mean + 5
+
+
+ggplot(data=BC_before, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=BC_before_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=BC_before_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=BC_before_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (B, C)",y="TIL score (%) difference (B - C)",title="Initial") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=BC_before_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=BC_before_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=BC_before_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+#Figure6i
+
+BC_after<-b_til_ABC[,c("Pathologist_B_TIL_revised","Pathologist_C_TIL_revised")] 
+
+BC_after$avg<-(b_til_ABC$Pathologist_B_TIL_revised+b_til_ABC$Pathologist_C_TIL_revised)/2 
+
+BC_after$diff<-b_til_ABC$Pathologist_B_TIL_revised-b_til_ABC$Pathologist_C_TIL_revised
+
+shapiro.test(BC_after$diff)
+
+BC_after_diff.mean<-mean(BC_after$diff) 
+
+BC_after_diff.sd<-sd(BC_after$diff)
+
+mean(abs(BC_after$diff))
+sd(abs(BC_after$diff))
+
+t.test(BC_before$diff, BC_after$diff, paired=TRUE)
+
+BC_after_lower_quar<-quantCI(BC_after$diff, 0.025, alpha=0.05, method = "exact")
+BC_after_lower_quar_value<-BC_after_lower_quar[["qx"]]
+BC_after_upper_quar<-quantCI(BC_after$diff, 0.975, alpha=0.05, method = "exact")
+BC_after_upper_quar_value<-BC_after_upper_quar[["qx"]]
+
+BC_after_upper_cha<-BC_after_upper_quar_value + 5
+BC_after_lower_cha<-BC_after_lower_quar_value - 5
+BC_after_mean_cha<-BC_after_diff.mean + 5
+
+
+ggplot(data=BC_after, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=BC_after_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=BC_after_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=BC_after_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (B, C)",y="TIL score (%) difference (B - C)",title="Revised") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=BC_after_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=BC_after_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=BC_after_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+
+#Figure6e
+
+CD_before<-b_til_ACD[,c("Pathologist_C_TIL","Pathologist_D_TIL")] 
+
+CD_before$avg<-(b_til_ACD$Pathologist_C_TIL+b_til_ACD$Pathologist_D_TIL)/2
+
+CD_before$diff<-b_til_ACD$Pathologist_C_TIL-b_til_ACD$Pathologist_D_TIL
+
+shapiro.test(CD_before$diff)
+
+CD_before_diff.mean<-mean(CD_before$diff) 
+CD_before_diff.sd<-sd(CD_before$diff)
+
+mean(abs(CD_before$diff))
+sd(abs(CD_before$diff))
+
+CD_before_lower_quar<-quantCI(CD_before$diff, 0.025, alpha=0.05, method = "exact")
+CD_before_lower_quar_value<-CD_before_lower_quar[["qx"]]
+CD_before_upper_quar<-quantCI(CD_before$diff, 0.975, alpha=0.05, method = "exact")
+CD_before_upper_quar_value<-CD_before_upper_quar[["qx"]]
+
+CD_before_upper_cha<-CD_before_upper_quar_value + 5
+CD_before_lower_cha<-CD_before_lower_quar_value - 5
+CD_before_mean_cha<-CD_before_diff.mean + 5
+
+
+ggplot(data=CD_before, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=CD_before_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=CD_before_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=CD_before_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (C, D)",y="TIL score (%) difference (C - D)",title="Initial") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=CD_before_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=CD_before_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=CD_before_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+#Figure6j
+
+CD_after<-b_til_ACD[,c("Pathologist_C_TIL_revised","Pathologist_D_TIL_revised")]  
+
+CD_after$avg<-(b_til_ACD$Pathologist_C_TIL_revised+b_til_ACD$Pathologist_D_TIL_revised)/2
+
+CD_after$diff<-b_til_ACD$Pathologist_C_TIL_revised-b_til_ACD$Pathologist_D_TIL_revised
+
+shapiro.test(CD_after$diff)
+
+CD_after_diff.mean<-mean(CD_after$diff) 
+CD_after_diff.sd<-sd(CD_after$diff)
+
+mean(abs(CD_after$diff))
+sd(abs(CD_after$diff))
+
+t.test(CD_before$diff, CD_after$diff, paired=TRUE)
+
+CD_after_lower_quar<-quantCI(CD_after$diff, 0.025, alpha=0.05, method = "exact")
+CD_after_lower_quar_value<-CD_after_lower_quar[["qx"]]
+CD_after_upper_quar<-quantCI(CD_after$diff, 0.975, alpha=0.05, method = "exact")
+CD_after_upper_quar_value<-CD_after_upper_quar[["qx"]]
+
+CD_after_upper_cha<-CD_after_upper_quar_value + 5
+CD_after_lower_cha<-CD_after_lower_quar_value - 5
+CD_after_mean_cha<-CD_after_diff.mean + 5
+
+
+ggplot(data=CD_after, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yintercept=CD_after_diff.mean),color="steelblue",size=1.5)+ 
+  geom_hline(aes(yintercept=CD_after_upper_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  geom_hline(aes(yintercept=CD_after_lower_quar_value),color="orangered",size=1.2,linetype="dashed")+ 
+  theme_bw()+ labs(x="Average TIL score (%) of pathologists (C, D)",y="TIL score (%) difference (C - D)",title="Revised") + 
+  xlim(0,100) + ylim(-80,80) + geom_text(aes(x=95,y=CD_after_mean_cha,label="Average"),col="steelblue", size=4.5)+ 
+  geom_text(aes(x=95,y=CD_after_upper_cha),label="97.5 percentile",col="orangered", size=4.5)+ geom_text(aes(x=95,y=CD_after_lower_cha),label="2.5 percentile",col="orangered", size=4.5) + 
+  theme(text=element_text(size=15)) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+
+b_til_Ajou<-subset(b_til, b_til$dataset=="Ajou")
