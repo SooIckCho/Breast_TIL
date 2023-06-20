@@ -3,6 +3,7 @@ library(ggplot2)
 library(QuantileNPCI)
 library(tidyverse)
 
+
 #dataset
 b_til <- read.table("Breast_TIL_raw_data.csv", sep=",", header=T)
 
@@ -24,8 +25,18 @@ b_til$C_change<-ifelse (b_til$Pathologist_C_TIL == b_til$Pathologist_C_TIL_revis
 b_til$D_change<-ifelse (b_til$Pathologist_D_TIL == b_til$Pathologist_D_TIL_revised, "No", "Yes")
 
 b_til$pCR<-ifelse(b_til$Miller.Payne_grade>=4,"Responder","Non-responder")
+b_til$pCR2<-ifelse(b_til$Miller.Payne_grade>=4,1,0)
 
 
+
+b_til$pathologist_average_group_before<-ifelse(b_til$Pathologist_average>=50,"sTIL High",
+                                               ifelse(b_til$Pathologist_average>=10,"sTIL Intermediate","0"))
+
+b_til$pathologist_average_group_after<-ifelse(b_til$Pathologist_average_revised>=50,"sTIL High",
+                                              ifelse(b_til$Pathologist_average_revised>=10,"sTIL Intermediate","0"))
+
+b_til$AI_average_group<-ifelse(b_til$AI_TIL>=50,"sTIL High",
+                               ifelse(b_til$AI_TIL>=10,"sTIL Intermediate","0"))
 
 
 
@@ -986,4 +997,435 @@ ggplot(data=CD_after, aes(x=avg, y=diff))+geom_jitter()+ geom_hline(aes(yinterce
   theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
 
 
+
+
+
+
 b_til_Ajou<-subset(b_til, b_til$dataset=="Ajou")
+
+#Figure8a 
+
+ggplot(b_til_Ajou,aes(x=pCR, y=Pathologist_average, fill=pCR)) +
+  geom_boxplot()+
+  geom_point()+
+  labs(title="Initial", x = "Pathologic responder", y = "Average TIL score (%) of pathologists") + 
+  theme(legend.position = "none") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#Figure8b 
+
+ggplot(b_til_Ajou,aes(x=pCR, y=Pathologist_average_revised, fill=pCR)) +
+  geom_boxplot()+
+  geom_point()+
+  labs(title="Revised", x = "Pathologic responder", y = "Average TIL score (%) of pathologists") + 
+  theme(legend.position = "none") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans")) 
+
+#Figure8c
+
+ggplot(b_til_Ajou,aes(x=pCR, y=AI_TIL, fill=pCR)) +
+  geom_boxplot()+
+  geom_point()+
+  labs(title="DL-powered TIL",x = "Pathologic responder", y = "DL-powered TIL score (%)") + 
+  theme(legend.position = "none") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#Figure8d
+
+result_before<-glm(pCR2 ~ pathologist_average_group_before, data = b_til_Ajou)
+result_after<-glm(pCR2 ~ pathologist_average_group_after, data = b_til_Ajou)
+result_AI<-glm(pCR2 ~ AI_average_group, data = b_til_Ajou)
+
+ORtable=function(x,digits=2){
+  suppressMessages(a<-confint(x))
+  result=data.frame(exp(coef(x)),exp(a))
+  result=round(result,digits)
+  result=cbind(result,round(summary(x)$coefficient[,4],3))
+  colnames(result)=c("OR","2.5%","97.5%","p")
+  result
+}
+
+ORtable(result_before)
+ORtable(result_after)
+ORtable(result_AI)
+
+neo_all <- read_csv(
+  "sTIL_group, Subgroup, odds, CIHigh, CILow
+  High, Initial, 1.25, 0.98, 1.59
+  High, Revised, 1.28, 1.01, 1.63
+  High, DL-powered, 1.27, 1.01, 1.59
+  Intermediate, Initial, 1.14, 0.98, 1.34
+  Intermediate, Revised, 1.16, 0.99, 1.36
+  Intermediate, DL-powered, 1.13, 0.97, 1.31"
+)
+
+
+adj = .2 
+
+neo_all$sTIL_group<-factor(neo_all$sTIL_group, levels =c("Intermediate", "High"))
+neo_all$Subgroup<-factor(neo_all$Subgroup, levels =c("DL-powered", "Revised", "Initial"))
+
+
+
+ggplot(neo_all, aes(x = odds, y = sTIL_group, color = Subgroup)) +
+  geom_vline(aes(xintercept = 1), size = .25, linetype = "dashed") +
+  geom_errorbarh(data = filter(neo_all, Subgroup== "Initial"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50", position = position_nudge(y = adj)) +
+  geom_point(data = filter(neo_all, Subgroup== "Initial"), size = 4, position = position_nudge(y = adj)) +
+  geom_text(data = filter(neo_all, Subgroup== "Initial"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = 1.5 * adj)) +
+  geom_errorbarh(data = filter(neo_all, Subgroup== "Revised"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50") +
+  geom_point(data = filter(neo_all, Subgroup== "Revised"), size = 4) +
+  geom_text(data = filter(neo_all, Subgroup== "Revised"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = 0.5 * adj)) +
+  geom_errorbarh(data = filter(neo_all, Subgroup== "DL-powered"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50", position = position_nudge(y = - adj)) +
+  geom_point(data = filter(neo_all, Subgroup== "DL-powered"), size = 4, position = position_nudge(y = - adj)) +
+  geom_text(data = filter(neo_all, Subgroup== "DL-powered"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = -0.5 * adj)) +
+  scale_x_continuous(breaks = seq(0,2,0.2) ) +
+  coord_trans(x = "log10") +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank()) +
+  labs(title="All (N = 203)", x = "Odds Ratio", y = "TIL group") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) + 
+  scale_color_discrete(breaks=c("Initial","Revised","DL-powered")) +
+  theme(legend.title = element_blank())
+
+#Figure8e
+
+b_til_Ajou_HER2<-subset(b_til_Ajou, b_til_Ajou$TNBC!="TNBC")
+result_before_HER2<-glm(pCR2 ~ pathologist_average_group_before, data = b_til_Ajou_HER2)
+result_after_HER2<-glm(pCR2 ~ pathologist_average_group_after, data = b_til_Ajou_HER2)
+result_AI_HER2<-glm(pCR2 ~ AI_average_group, data = b_til_Ajou_HER2)
+
+ORtable(result_before_HER2)
+ORtable(result_after_HER2)
+ORtable(result_AI_HER2)
+
+neo_HER2 <- read_csv(
+  "sTIL_group, Subgroup, odds, CIHigh, CILow
+  High, Initial, 1.31, 0.97, 1.77
+  High, Revised, 1.43, 1.06, 1.93
+  High, DL-powered, 1.25, 0.95, 1.65
+  Intermediate, Initial, 1.21, 1.01, 1.44
+  Intermediate, Revised, 1.22, 1.03, 1.45
+  Intermediate, DL-powered, 1.11, 0.94, 1.32"
+)
+
+
+adj = .2 
+
+neo_HER2$sTIL_group<-factor(neo_HER2$sTIL_group, levels =c("Intermediate", "High"))
+neo_HER2$Subgroup<-factor(neo_HER2$Subgroup, levels =c("DL-powered", "Revised", "Initial"))
+
+
+
+ggplot(neo_HER2, aes(x = odds, y = sTIL_group, color = Subgroup)) +
+  geom_vline(aes(xintercept = 1), size = .25, linetype = "dashed") +
+  geom_errorbarh(data = filter(neo_HER2, Subgroup== "Initial"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50", position = position_nudge(y = adj)) +
+  geom_point(data = filter(neo_HER2, Subgroup== "Initial"), size = 4, position = position_nudge(y = adj)) +
+  geom_text(data = filter(neo_HER2, Subgroup== "Initial"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = 1.5 * adj)) +
+  geom_errorbarh(data = filter(neo_HER2, Subgroup== "Revised"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50") +
+  geom_point(data = filter(neo_HER2, Subgroup== "Revised"), size = 4) +
+  geom_text(data = filter(neo_HER2, Subgroup== "Revised"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = 0.5 * adj)) +
+  geom_errorbarh(data = filter(neo_HER2, Subgroup== "DL-powered"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50", position = position_nudge(y = - adj)) +
+  geom_point(data = filter(neo_HER2, Subgroup== "DL-powered"), size = 4, position = position_nudge(y = - adj)) +
+  geom_text(data = filter(neo_HER2, Subgroup== "DL-powered"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = -0.5 * adj)) +
+  scale_x_continuous(breaks = seq(0,2,0.2) ) +
+  coord_trans(x = "log10") +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank()) +
+  labs(title="HER2 (N = 148)", x = "Odds Ratio", y = "TIL group") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) + 
+  scale_color_discrete(breaks=c("Initial","Revised","DL-powered")) +
+  theme(legend.title = element_blank())
+
+
+#Figure8f
+
+b_til_Ajou_TNBC<-subset(b_til_Ajou, b_til_Ajou$TNBC=="TNBC")
+result_before_TNBC<-glm(pCR2 ~ pathologist_average_group_before, data = b_til_Ajou_TNBC)
+result_after_TNBC<-glm(pCR2 ~ pathologist_average_group_after, data = b_til_Ajou_TNBC)
+result_AI_TNBC<-glm(pCR2 ~ AI_average_group, data = b_til_Ajou_TNBC)
+
+ORtable(result_before_TNBC)
+ORtable(result_after_TNBC)
+ORtable(result_AI_TNBC)
+
+
+neo_TNBC <- read_csv(
+  "sTIL_group, Subgroup, odds, CIHigh, CILow
+  High, Initial, 1.18, 0.71, 1.95
+  High, Revised, 1.13, 0.69, 1.85
+  High, DL-powered, 1.38, 0.93, 2.04
+  Intermediate, Initial, 1.03, 0.67, 1.57
+  Intermediate, Revised, 1.04, 0.67, 1.59
+  Intermediate, DL-powered, 1.20, 0.89, 1.60"
+)
+
+
+adj = .2 
+
+neo_TNBC$sTIL_group<-factor(neo_TNBC$sTIL_group, levels =c("Intermediate", "High"))
+neo_TNBC$Subgroup<-factor(neo_TNBC$Subgroup, levels =c("DL-powered", "Revised", "Initial"))
+
+
+
+ggplot(neo_TNBC, aes(x = odds, y = sTIL_group, color = Subgroup)) +
+  geom_vline(aes(xintercept = 1), size = .25, linetype = "dashed") +
+  geom_errorbarh(data = filter(neo_TNBC, Subgroup== "Initial"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50", position = position_nudge(y = adj)) +
+  geom_point(data = filter(neo_TNBC, Subgroup== "Initial"), size = 4, position = position_nudge(y = adj)) +
+  geom_text(data = filter(neo_TNBC, Subgroup== "Initial"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = 1.5 * adj)) +
+  geom_errorbarh(data = filter(neo_TNBC, Subgroup== "Revised"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50") +
+  geom_point(data = filter(neo_TNBC, Subgroup== "Revised"), size = 4) +
+  geom_text(data = filter(neo_TNBC, Subgroup== "Revised"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = 0.5 * adj)) +
+  geom_errorbarh(data = filter(neo_TNBC, Subgroup== "DL-powered"), aes(xmax = CIHigh, xmin = CILow), size = .5, height = .1, color = "gray50", position = position_nudge(y = - adj)) +
+  geom_point(data = filter(neo_TNBC, Subgroup== "DL-powered"), size = 4, position = position_nudge(y = - adj)) +
+  geom_text(data = filter(neo_TNBC, Subgroup== "DL-powered"), aes(label = paste0(round(odds, 2), " (", round(CIHigh, 2), " - ", round(CILow, 2), ")"), color = Subgroup), position = position_nudge(y = -0.5 * adj)) +
+  scale_x_continuous(breaks = seq(0,2,0.2) ) +
+  coord_trans(x = "log10") +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank()) +
+  labs(title="TNBC (N = 55)", x = "Odds Ratio", y = "TIL group") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans")) +
+  theme(
+    legend.position = c(.99, .01),
+    legend.justification = c("right", "bottom"),
+    legend.box.just = "right",
+    legend.margin = margin(1, 1, 1, 1)
+  ) + 
+  scale_color_discrete(breaks=c("Initial","Revised","DL-powered")) +
+  theme(legend.title = element_blank())
+
+#SFigure1a
+
+b_til_perfect_grade1<-subset(b_til_perfect, Histologic_grade=="1")
+
+CCC(b_til_perfect_grade1$Pathologist_average, b_til_perfect_grade1$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = b_til_perfect_grade1, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Concordant set (B-R Grade I, N = 26), \nCCC = 0.626 (95% CI: 0.382-0.788)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure1b
+
+b_til_perfect_grade2<-subset(b_til_perfect, Histologic_grade=="2")
+
+CCC(b_til_perfect_grade2$Pathologist_average, b_til_perfect_grade2$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_perfect_grade2, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Concordant set (B-R Grade II, N = 117), \nCCC = 0.767 (95% CI: 0.688-0.828)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure1c
+
+b_til_perfect_grade3<-subset(b_til_perfect, Histologic_grade=="3")
+
+
+CCC(b_til_perfect_grade3$Pathologist_average, b_til_perfect_grade3$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_perfect_grade3, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Concordant set (B-R Grade III, N = 66), \nCCC = 0.711 (95% CI: 0.574-0.810)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure2
+
+b_til_final_concordant<-subset(b_til, b_til$Final_concordant==1)
+
+CCC(b_til_final_concordant$Pathologist_average_revised, b_til_final_concordant$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_final_concordant, aes(x=Pathologist_average_revised, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised (Final concordant case, N = 286),\nCCC = 0.911 (95% CI: 0.889-0.928)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#SFigure4a
+b_til_cureline<-subset(b_til,dataset=="Cureline")
+
+CCC(b_til_cureline$Pathologist_average, b_til_cureline$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = b_til_cureline, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial (Cureline, N = 199), \nCCC = 0.715 (95% CI: 0.658-0.763)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure4b
+
+CCC(b_til_cureline$Pathologist_average_revised, b_til_cureline$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_cureline, aes(x=Pathologist_average_revised, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised (Cureline, N = 199), \nCCC = 0.820 (95% CI: 0.781-0.854)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+#SFigure4c
+
+
+CCC(b_til_Ajou$Pathologist_average, b_til_Ajou$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_Ajou, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial (AUMC, N = 203), \nCCC = 0.750 (95% CI: 0.686-0.803)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+
+
+CCC(b_til_Ajou$Pathologist_average_revised, b_til_Ajou$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_Ajou, aes(x=Pathologist_average_revised, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised (AUMC, N = 203), \nCCC = 0.918 (95% CI: 0.895-0.937)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure5a
+
+b_til_not_perfect<-subset(b_til, abs(b_til$Pathologist_A_TIL - b_til$Pathologist_B_or_D_TIL)>10 | abs(b_til$Pathologist_B_or_D_TIL - b_til$Pathologist_C_TIL) >10 | abs(b_til$Pathologist_C_TIL - b_til$Pathologist_A_TIL) >10)
+
+CCC(b_til_not_perfect$Pathologist_average, b_til_not_perfect$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_not_perfect, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Initial (Discordant set, N = 192),\nCCC = 0.619 (95% CI: 0.533-0.693)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure5b
+
+CCC(b_til_not_perfect$Pathologist_average_revised, b_til_not_perfect$AI_TIL, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+
+ggplot(data = b_til_not_perfect, aes(x=Pathologist_average_revised, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="Revised (Discordant set, N = 192),\nCCC = 0.824 (95% CI: 0.775-0.863)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure6a
+
+b_til_Ajou$Miller.Payne_grade<-as.character(b_til_Ajou$Miller.Payne_grade)
+
+
+ggplot(b_til_Ajou,aes(x=Miller.Payne_grade, y=Pathologist_average, fill=Miller.Payne_grade)) +
+  geom_boxplot()+
+  geom_point()+
+  labs(title="Initial", x = "Miller Payne grade", y = "Average TIL score (%) of pathologists") +
+  theme(text=element_text(size=15, family="sans")) +  
+  scale_fill_discrete(name = "Miller Payne grade") +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure6b
+
+ggplot(b_til_Ajou,aes(x=Miller.Payne_grade, y=Pathologist_average_revised, fill=Miller.Payne_grade)) +
+  geom_boxplot()+
+  geom_point()+
+  labs(title="Revised", x = "Miller Payne grade", y = "Average TIL score (%) of pathologists") +
+  theme(text=element_text(size=15, family="sans")) +  
+  scale_fill_discrete(name = "Miller Payne grade") +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure6c
+
+ggplot(b_til_Ajou,aes(x=Miller.Payne_grade, y=AI_TIL, fill=Miller.Payne_grade)) +
+  geom_boxplot()+
+  geom_point()+
+  labs(title="DL-powered TIL",x = "Miller Payne grade", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +  
+  scale_fill_discrete(name = "Miller Payne grade") +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
+
+#SFigure8
+
+grid <- read.table("TCGA_grid_TIL_result.csv", sep=",", header=T)
+
+grid$TIL_6_5<-grid$AI_TIL * 65/70
+
+grid$TIL_7_5<-grid$AI_TIL * 75/70
+
+#SFigure8a
+
+ggplot(grid, aes(TIL_6_5, Pathologist_average)) +
+  geom_point() +
+  stat_smooth() +
+  geom_abline(slope=1, intercept=0, color="red") + xlim(0,100) + ylim(0,100) +
+  labs(title="Constant: 6.5", x = "DL TIL analyzer", y = "Average of Pathologists")
+
+ggplot(grid, aes(AI_TIL, Pathologist_average)) +
+  geom_point() +
+  stat_smooth() +
+  geom_abline(slope=1, intercept=0, color="red") + xlim(0,100) + ylim(0,100) +
+  labs(title="Constant: 7.0", x = "DL TIL analyzer", y = "Average of Pathologists")
+
+
+ggplot(grid, aes(TIL_7_5, Pathologist_average)) +
+  geom_point() +
+  stat_smooth() +
+  geom_abline(slope=1, intercept=0, color="red") + xlim(0,100) + ylim(0,100) +
+  labs(title="Constant: 7.5", x = "DL TIL analyzer", y = "Average of Pathologists")
+
+
+#SFigure9
+TCGA<-read.csv("TCGA_WSI_TIL_result.csv")
+CCC(TCGA$AI_TIL, TCGA$Pathologist_average, ci="z-transform",
+    conf.level = 0.95, na.rm = FALSE)
+
+ggplot(data = TCGA, aes(x=Pathologist_average, y=AI_TIL)) +
+  geom_jitter(width = 1, height = 1) + 
+  coord_cartesian(xlim = c(0, 100), ylim = c(0, 100)) + geom_smooth(linetype = 'dashed') + 
+  labs(title="TCGA dataset (N = 48),\nCCC = 0.874 (95% CI: 0.799-0.922)", x = "Average TIL score (%) of pathologists", y = "DL-powered TIL score (%)") +
+  theme(text=element_text(size=15, family="sans")) +
+  theme(axis.text.x = element_text(size=14, family="sans"), axis.text.y = element_text(size=14, family="sans"))
