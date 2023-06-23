@@ -12,5 +12,7 @@ The visualization and validation of the algorithm is available from the DL-power
 Example of WSI visualizer
 ![image](https://github.com/SooIckCho/Breast_TIL/assets/96602980/e641007e-7355-4034-a55c-ef25eb564425)
 
+Grid images and WSI from TCGA dataset can be downloaded as follows; https://drive.google.com/file/d/1Uk1PuONuy2vMkBWgSzxmGtK2jK-kk8sg/view?usp=sharing
+
 
 The other data (Cureline and AUMC dataset) in this study are also available from the corresponding author (Seokhwi Kim, seokhwikim@ajou.ac.kr) upon academic purpose-request.
